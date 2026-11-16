@@ -82,6 +82,11 @@ jobs:
             touch "$MARKER"
           fi
 
+      - name: Copy System.Private.CoreLib.dll into Core_Root
+        run: >
+          cp ./artifacts/bin/coreclr/linux.${{ env.ARCH }}.${{ env.CONFIG }}/IL/System.Private.CoreLib.dll
+          ./artifacts/tests/coreclr/linux.${{ env.ARCH }}.${{ env.CONFIG }}/Tests/Core_Root/
+
       - name: Run src/s390tests
         working-directory: src/s390tests
         env:
