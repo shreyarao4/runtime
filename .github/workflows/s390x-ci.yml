@@ -42,6 +42,25 @@ jobs:
           fetch-depth: 1
           clean: false   # keep build outputs between runs for incremental builds
 
+      # No official s390x SDK download exists, so use IBM's build (matches global.json).
+      - name: Install s390x .NET SDK
+        env:
+          SDK_VERSION: 9.0.105
+          SDK_URL: https://github.com/IBM/dotnet-s390x/releases/download/v9.0.105/dotnet-sdk-9.0.105-linux-s390x.tar.gz
+        run: |
+          DOTNET_DIR="$HOME/dotnet-s390x-$SDK_VERSION"
+          if [ ! -x "$DOTNET_DIR/dotnet" ]; then
+            mkdir -p "$DOTNET_DIR"
+            curl -fL --retry 3 -o "$RUNNER_TEMP/dotnet-sdk.tar.gz" "$SDK_URL"
+            tar -xzf "$RUNNER_TEMP/dotnet-sdk.tar.gz" -C "$DOTNET_DIR"
+            rm -f "$RUNNER_TEMP/dotnet-sdk.tar.gz"
+          fi
+          echo "DOTNET_ROOT=$DOTNET_DIR" >> "$GITHUB_ENV"
+          echo "DOTNET_INSTALL_DIR=$DOTNET_DIR" >> "$GITHUB_ENV"
+          echo "DOTNET_MULTILEVEL_LOOKUP=0" >> "$GITHUB_ENV"
+          echo "$DOTNET_DIR" >> "$GITHUB_PATH"
+          "$DOTNET_DIR/dotnet" --version
+
       - name: Build CoreCLR and libraries
         run: ./build.sh -subset clr+libs -c ${{ env.CONFIG }} -arch ${{ env.ARCH }} -ci
 
