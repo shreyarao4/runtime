@@ -1,0 +1,71 @@
+name: s390x CI
+
+# Runs on a self-hosted s390x runner (labels: self-hosted, linux, s390x).
+# Runner setup: docs/workflow/s390x-runner-setup.md
+#
+# - Nightly at 00:00 UTC: builds the current HEAD of release/9.0.5.
+# - Pull requests targeting release/9.0.5: builds the PR merge result.
+#
+# NOTE: `schedule` triggers only run from the repository's DEFAULT branch, so this
+# file must exist on the default branch (it checks out release/9.0.5 explicitly).
+# `pull_request` uses the workflow file from the PR's merge commit, so the file must
+# also exist on release/9.0.5.
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # 00:00 UTC daily
+  pull_request:
+    branches: [ release/9.0.5 ]
+  workflow_dispatch:
+
+concurrency:
+  group: s390x-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CONFIG: Checked
+  ARCH: s390x
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  s390x-tests:
+    name: Build and run src/s390tests
+    runs-on: [self-hosted, linux, s390x]
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # schedule/dispatch: test the HEAD of release/9.0.5.
+          # pull_request: empty ref -> default checkout of the PR merge commit.
+          ref: ${{ github.event_name == 'pull_request' && '' || 'release/9.0.5' }}
+          fetch-depth: 1
+          clean: false   # keep build outputs between runs for incremental builds
+
+      - name: Build CoreCLR and libraries
+        run: ./build.sh -subset clr+libs -c ${{ env.CONFIG }} -arch ${{ env.ARCH }} -ci
+
+      - name: Generate Core_Root
+        run: ./src/tests/build.sh ${{ env.ARCH }} ${{ env.CONFIG }} generatelayoutonly
+
+      - name: Run src/s390tests
+        working-directory: src/s390tests
+        env:
+          CORE_ROOT: ${{ github.workspace }}/artifacts/tests/coreclr/linux.${{ env.ARCH }}.${{ env.CONFIG }}/Tests/Core_Root
+        run: ./test.sh 2>&1 | tee "$RUNNER_TEMP/s390tests.log"
+
+      # test.sh always exits 0; fail the job if any test failed.
+      - name: Fail if any test failed
+        run: |
+          if [ -s /tmp/failed_tests.txt ]; then
+            echo "Failed s390tests:"; cat /tmp/failed_tests.txt; exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s390tests-results
+          path: |
+            ${{ runner.temp }}/s390tests.log
+            /tmp/passed_tests.txt
+            /tmp/failed_tests.txt
