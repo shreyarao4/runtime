@@ -65,7 +65,7 @@ jobs:
         run: ./build.sh -subset clr+libs -c ${{ env.CONFIG }} -arch ${{ env.ARCH }} -ci
 
       - name: Generate Core_Root
-        run: ./src/tests/build.sh ${{ env.ARCH }} ${{ env.CONFIG }} generatelayoutonly
+        run: ./src/tests/build.sh ${{ env.ARCH }} ${{ env.CONFIG }}
 
       - name: Run src/s390tests
         working-directory: src/s390tests
